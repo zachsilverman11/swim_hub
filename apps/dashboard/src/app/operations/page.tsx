@@ -2,6 +2,8 @@ import businessIntelligence from '@inspired-swim/business-intelligence'
 import type { LocationInsights, BusinessSnapshot } from '@inspired-swim/business-intelligence'
 import Link from 'next/link'
 
+// Force dynamic rendering (don't prerender at build time)
+export const dynamic = 'force-dynamic'
 // Revalidate every 5 minutes
 export const revalidate = 300
 
