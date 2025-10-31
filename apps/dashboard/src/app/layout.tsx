@@ -1,5 +1,13 @@
 import type { Metadata } from 'next'
+import { Alegreya_Sans } from 'next/font/google'
 import './globals.css'
+
+const alegreyaSans = Alegreya_Sans({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-alegreya-sans',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Inspired Swim - Operations Dashboard',
@@ -13,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={alegreyaSans.className}>{children}</body>
     </html>
   )
 }

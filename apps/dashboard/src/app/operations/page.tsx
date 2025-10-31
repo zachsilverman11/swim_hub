@@ -1,6 +1,7 @@
 import businessIntelligence from '@inspired-swim/business-intelligence'
 import type { LocationInsights, BusinessSnapshot } from '@inspired-swim/business-intelligence'
 import Link from 'next/link'
+import Image from 'next/image'
 
 // Force dynamic rendering (don't prerender at build time)
 export const dynamic = 'force-dynamic'
@@ -19,18 +20,26 @@ export default async function OperationsDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-md border-b-4 border-[#004657]">
+      <header className="bg-white shadow-md border-b-4 border-[#004758]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-4xl font-bold text-[#004657]">Operations Dashboard</h1>
-              <p className="text-gray-600 mt-2 text-sm">
-                {snapshot.activeSeason.name} | Last updated {new Date(snapshot.timestamp).toLocaleString()}
-              </p>
+            <div className="flex items-center gap-4">
+              <Image
+                src="/InspiredSwim-icon_full-colour.svg"
+                alt="Inspired Swim"
+                width={60}
+                height={60}
+              />
+              <div>
+                <h1 className="text-4xl font-bold text-[#004758]">Operations Dashboard</h1>
+                <p className="text-gray-600 mt-2 text-sm">
+                  {snapshot.activeSeason.name} | Last updated {new Date(snapshot.timestamp).toLocaleString()}
+                </p>
+              </div>
             </div>
             <Link
               href="/"
-              className="px-4 py-2 text-[#004657] hover:bg-[#004657] hover:text-white border-2 border-[#004657] rounded-lg transition-colors font-medium"
+              className="px-4 py-2 text-[#004758] hover:bg-[#004758] hover:text-white border-2 border-depths rounded-lg transition-colors font-medium"
             >
               ← Back to Home
             </Link>
@@ -41,32 +50,28 @@ export default async function OperationsDashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Business Overview */}
         <section className="mb-8">
-          <h2 className="text-2xl font-bold text-[#004657] mb-6 pb-2 border-b-2 border-[#0080A0]">Business Overview</h2>
+          <h2 className="text-2xl font-bold text-[#004758] mb-6 pb-2 border-b-2 border-[#22D1BC]">Business Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <MetricCard
               title="Total Locations"
               value={snapshot.locations.length.toString()}
               subtitle={`${snapshot.locations.filter(l => l.utilization.utilizationRate > 0).length} active`}
-              icon="📍"
             />
             <MetricCard
               title="Overall Utilization"
               value={`${(snapshot.overallUtilization * 100).toFixed(1)}%`}
               subtitle={getUtilizationLabel(snapshot.overallUtilization)}
-              icon="📈"
               colorClass={getUtilizationColor(snapshot.overallUtilization)}
             />
             <MetricCard
               title="Total Revenue"
               value={`$${snapshot.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               subtitle={`${snapshot.totalBookings} bookings`}
-              icon="💰"
             />
             <MetricCard
               title="Avg Booking Value"
               value={`$${(snapshot.totalRevenue / snapshot.totalBookings).toFixed(2)}`}
               subtitle="Per booking"
-              icon="💵"
             />
           </div>
         </section>
@@ -74,13 +79,13 @@ export default async function OperationsDashboard() {
         {/* Performance Alerts */}
         {(snapshot.underperformingLocations.length > 0 || snapshot.topLocations.some(l => l.utilization.utilizationRate > 0.9)) && (
           <section className="mb-8">
-            <h2 className="text-2xl font-bold text-[#004657] mb-6 pb-2 border-b-2 border-[#0080A0]">Performance Alerts</h2>
+            <h2 className="text-2xl font-bold text-[#004758] mb-6 pb-2 border-b-2 border-[#22D1BC]">Performance Alerts</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Underperforming Locations */}
               {snapshot.underperformingLocations.length > 0 && (
                 <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 shadow-md">
                   <div className="flex items-start">
-                    <span className="text-4xl mr-3">⚠️</span>
+                    
                     <div className="flex-1">
                       <h3 className="text-xl font-bold text-red-900 mb-2">
                         Needs Attention ({snapshot.underperformingLocations.length})
@@ -118,7 +123,7 @@ export default async function OperationsDashboard() {
               {snapshot.topLocations.some(l => l.utilization.utilizationRate > 0.9) && (
                 <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6 shadow-md">
                   <div className="flex items-start">
-                    <span className="text-4xl mr-3">🎉</span>
+                    
                     <div className="flex-1">
                       <h3 className="text-xl font-bold text-green-900 mb-2">
                         High Performers
@@ -154,17 +159,17 @@ export default async function OperationsDashboard() {
 
         {/* Revenue Tracking */}
         <section className="mb-8">
-          <h2 className="text-2xl font-bold text-[#004657] mb-6 pb-2 border-b-2 border-[#0080A0]">Revenue Tracking</h2>
+          <h2 className="text-2xl font-bold text-[#004758] mb-6 pb-2 border-b-2 border-[#22D1BC]">Revenue Tracking</h2>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Top 5 Locations by Revenue */}
               <div className="lg:col-span-2">
-                <h3 className="text-lg font-semibold text-[#004657] mb-4">Top Locations by Revenue</h3>
+                <h3 className="text-lg font-semibold text-[#004758] mb-4">Top Locations by Revenue</h3>
                 <div className="space-y-4">
                   {snapshot.topLocations.map((loc, index) => (
                     <div key={loc.location.id} className="flex items-center">
                       <span className="text-2xl mr-3">
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`}
+                        {`${index + 1}.`}
                       </span>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
@@ -193,10 +198,10 @@ export default async function OperationsDashboard() {
 
               {/* Lesson Type Breakdown */}
               <div>
-                <h3 className="text-lg font-semibold text-[#004657] mb-4">Lesson Types</h3>
+                <h3 className="text-lg font-semibold text-[#004758] mb-4">Lesson Types</h3>
                 <div className="space-y-3">
                   {snapshot.lessonTypeBreakdown.slice(0, 5).map((type) => (
-                    <div key={`${type.lessonType}-${type.lessonFormat}`} className="border-l-4 border-[#0080A0] pl-3 hover:bg-gray-50 py-2 transition-colors">
+                    <div key={`${type.lessonType}-${type.lessonFormat}`} className="border-l-4 border-[#22D1BC] pl-3 hover:bg-gray-50 py-2 transition-colors">
                       <div className="flex justify-between items-start mb-1">
                         <div className="text-sm font-medium text-gray-900">
                           {type.lessonType} {type.lessonFormat}
@@ -218,11 +223,11 @@ export default async function OperationsDashboard() {
 
         {/* Location Table */}
         <section>
-          <h2 className="text-2xl font-bold text-[#004657] mb-6 pb-2 border-b-2 border-[#0080A0]">All Locations</h2>
+          <h2 className="text-2xl font-bold text-[#004758] mb-6 pb-2 border-b-2 border-[#22D1BC]">All Locations</h2>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-[#004657] text-white">
+                <thead className="bg-[#004758] text-white">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">
                       Location
@@ -299,9 +304,9 @@ export default async function OperationsDashboard() {
         </section>
 
         {/* Footer Info */}
-        <div className="mt-10 p-4 bg-white rounded-lg shadow-md border-l-4 border-[#0080A0] text-center">
+        <div className="mt-10 p-4 bg-white rounded-lg shadow-md border-l-4 border-[#22D1BC] text-center">
           <p className="text-sm text-gray-600">Data updates automatically every 5 minutes</p>
-          <p className="text-sm text-[#004657] font-semibold mt-1">Season: {snapshot.activeSeason.name}</p>
+          <p className="text-sm text-[#004758] font-semibold mt-1">Season: {snapshot.activeSeason.name}</p>
         </div>
       </main>
     </div>
@@ -313,20 +318,17 @@ function MetricCard({
   title,
   value,
   subtitle,
-  icon,
   colorClass = 'text-gray-900'
 }: {
   title: string
   value: string
   subtitle: string
-  icon: string
   colorClass?: string
 }) {
   return (
-    <div className="bg-white rounded-lg shadow-md border-l-4 border-[#0080A0] p-6 hover:shadow-lg transition-shadow">
-      <div className="flex items-center justify-between mb-3">
+    <div className="bg-white rounded-lg shadow-md border-l-4 border-[#22D1BC] p-6 hover:shadow-lg transition-shadow">
+      <div className="mb-3">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</h3>
-        <span className="text-3xl">{icon}</span>
       </div>
       <p className={`text-3xl font-bold ${colorClass}`}>{value}</p>
       <p className="text-sm text-gray-600 mt-2">{subtitle}</p>
