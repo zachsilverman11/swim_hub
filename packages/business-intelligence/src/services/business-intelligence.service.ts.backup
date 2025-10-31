@@ -1,0 +1,407 @@
+import FirebaseService from './firebase.service';
+import {
+  Location,
+  Service,
+  Instructor,
+  Booking,
+  RevenueTarget,
+  LocationInsights,
+  ServiceInsights,
+  InstructorInsights,
+  BusinessSnapshot,
+  BusinessIntelligenceQuery,
+  DateRange,
+} from '../types';
+import { getCurrentMonth, calculateAvailableHours, isDateInRange } from '../utils/date.utils';
+
+/**
+ * Business Intelligence Service
+ * Retrieves and analyzes business data from Firebase
+ */
+export class BusinessIntelligenceService {
+  private firebase = FirebaseService;
+
+  /**
+   * Get all locations from Firebase
+   */
+  async getLocations(includeInactive = false): Promise<Location[]> {
+    const snapshot = await this.firebase.collection('locations').get();
+
+    const locations: Location[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const location: Location = {
+        id: doc.id,
+        name: data.name,
+        address: data.address,
+        city: data.city,
+        province: data.province,
+        postalCode: data.postalCode,
+        capacity: data.capacity,
+        active: data.active ?? true,
+        createdAt: this.firebase.timestampToDate(data.createdAt),
+        updatedAt: this.firebase.timestampToDate(data.updatedAt),
+      };
+
+      if (includeInactive || location.active) {
+        locations.push(location);
+      }
+    });
+
+    return locations;
+  }
+
+  /**
+   * Get a specific location by ID
+   */
+  async getLocation(locationId: string): Promise<Location | null> {
+    const doc = await this.firebase.collection('locations').doc(locationId).get();
+
+    if (!doc.exists) {
+      return null;
+    }
+
+    const data = doc.data()!;
+    return {
+      id: doc.id,
+      name: data.name,
+      address: data.address,
+      city: data.city,
+      province: data.province,
+      postalCode: data.postalCode,
+      capacity: data.capacity,
+      active: data.active ?? true,
+      createdAt: this.firebase.timestampToDate(data.createdAt),
+      updatedAt: this.firebase.timestampToDate(data.updatedAt),
+    };
+  }
+
+  /**
+   * Get all services from Firebase
+   */
+  async getServices(includeInactive = false): Promise<Service[]> {
+    const snapshot = await this.firebase.collection('services').get();
+
+    const services: Service[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const service: Service = {
+        id: doc.id,
+        name: data.name,
+        description: data.description,
+        duration: data.duration,
+        pricing: data.pricing,
+        active: data.active ?? true,
+        serviceType: data.serviceType || 'other',
+      };
+
+      if (includeInactive || service.active) {
+        services.push(service);
+      }
+    });
+
+    return services;
+  }
+
+  /**
+   * Get all instructors from Firebase
+   */
+  async getInstructors(includeInactive = false): Promise<Instructor[]> {
+    const snapshot = await this.firebase.collection('instructors').get();
+
+    const instructors: Instructor[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const instructor: Instructor = {
+        id: doc.id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        locationIds: data.locationIds || [],
+        certifications: data.certifications || [],
+        active: data.active ?? true,
+        hireDate: this.firebase.timestampToDate(data.hireDate),
+      };
+
+      if (includeInactive || instructor.active) {
+        instructors.push(instructor);
+      }
+    });
+
+    return instructors;
+  }
+
+  /**
+   * Get bookings with optional filters
+   */
+  async getBookings(query?: BusinessIntelligenceQuery): Promise<Booking[]> {
+    let bookingsQuery = this.firebase.collection('bookings');
+
+    // Filter by location if specified
+    if (query?.locationIds && query.locationIds.length > 0) {
+      bookingsQuery = bookingsQuery.where('locationId', 'in', query.locationIds) as any;
+    }
+
+    // Filter by date range if specified
+    if (query?.dateRange) {
+      bookingsQuery = bookingsQuery
+        .where('scheduledAt', '>=', query.dateRange.startDate)
+        .where('scheduledAt', '<=', query.dateRange.endDate) as any;
+    }
+
+    const snapshot = await bookingsQuery.get();
+
+    const bookings: Booking[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      bookings.push({
+        id: doc.id,
+        locationId: data.locationId,
+        instructorId: data.instructorId,
+        serviceId: data.serviceId,
+        studentName: data.studentName,
+        studentAge: data.studentAge,
+        parentEmail: data.parentEmail,
+        parentPhone: data.parentPhone,
+        scheduledAt: this.firebase.timestampToDate(data.scheduledAt),
+        duration: data.duration,
+        status: data.status,
+        revenue: data.revenue || 0,
+        createdAt: this.firebase.timestampToDate(data.createdAt),
+        updatedAt: this.firebase.timestampToDate(data.updatedAt),
+      });
+    });
+
+    return bookings;
+  }
+
+  /**
+   * Get revenue targets for locations
+   */
+  async getRevenueTargets(locationIds?: string[]): Promise<RevenueTarget[]> {
+    let targetsQuery = this.firebase.collection('revenueTargets');
+
+    if (locationIds && locationIds.length > 0) {
+      targetsQuery = targetsQuery.where('locationId', 'in', locationIds) as any;
+    }
+
+    const snapshot = await targetsQuery.get();
+
+    const targets: RevenueTarget[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      targets.push({
+        id: doc.id,
+        locationId: data.locationId,
+        targetAmount: data.targetAmount,
+        period: data.period,
+        startDate: this.firebase.timestampToDate(data.startDate),
+        endDate: this.firebase.timestampToDate(data.endDate),
+      });
+    });
+
+    return targets;
+  }
+
+  /**
+   * Get location insights with utilization and revenue data
+   */
+  async getLocationInsights(
+    locationId: string,
+    dateRange?: DateRange
+  ): Promise<LocationInsights | null> {
+    const location = await this.getLocation(locationId);
+    if (!location) {
+      return null;
+    }
+
+    const range = dateRange || getCurrentMonth();
+
+    // Get bookings for this location in the date range
+    const bookings = await this.getBookings({
+      locationIds: [locationId],
+      dateRange: range,
+    });
+
+    // Calculate booked hours
+    const bookedHours = bookings
+      .filter((b) => b.status !== 'cancelled')
+      .reduce((sum, booking) => sum + booking.duration / 60, 0);
+
+    // Calculate available hours based on operating schedule
+    const availableHours = calculateAvailableHours(location.capacity.operatingHours, range);
+
+    // Calculate utilization rate
+    const utilizationRate = availableHours > 0 ? bookedHours / availableHours : 0;
+
+    // Calculate revenue
+    const actualRevenue = bookings
+      .filter((b) => b.status === 'completed')
+      .reduce((sum, booking) => sum + booking.revenue, 0);
+
+    // Get revenue target for this period
+    const targets = await this.getRevenueTargets([locationId]);
+    const currentTarget = targets.find((t) => {
+      return isDateInRange(range.startDate, { startDate: t.startDate, endDate: t.endDate });
+    });
+
+    // Count bookings by status
+    const bookingStats = {
+      total: bookings.length,
+      completed: bookings.filter((b) => b.status === 'completed').length,
+      cancelled: bookings.filter((b) => b.status === 'cancelled').length,
+      noShow: bookings.filter((b) => b.status === 'no-show').length,
+    };
+
+    // Determine performance level
+    let performance: 'excellent' | 'good' | 'fair' | 'poor';
+    if (utilizationRate >= 0.8) {
+      performance = 'excellent';
+    } else if (utilizationRate >= 0.6) {
+      performance = 'good';
+    } else if (utilizationRate >= 0.4) {
+      performance = 'fair';
+    } else {
+      performance = 'poor';
+    }
+
+    return {
+      location,
+      utilization: {
+        bookedHours,
+        availableHours,
+        utilizationRate,
+      },
+      revenue: {
+        actual: actualRevenue,
+        target: currentTarget?.targetAmount,
+        variance: currentTarget ? actualRevenue - currentTarget.targetAmount : undefined,
+      },
+      bookings: bookingStats,
+      performance,
+    };
+  }
+
+  /**
+   * Get insights for all locations
+   */
+  async getAllLocationInsights(query?: BusinessIntelligenceQuery): Promise<LocationInsights[]> {
+    const locations = await this.getLocations(query?.includeInactive);
+    const dateRange = query?.dateRange || getCurrentMonth();
+
+    const insights: LocationInsights[] = [];
+    for (const location of locations) {
+      const insight = await this.getLocationInsights(location.id, dateRange);
+      if (insight) {
+        insights.push(insight);
+      }
+    }
+
+    return insights;
+  }
+
+  /**
+   * Get service insights (popularity, revenue)
+   */
+  async getServiceInsights(dateRange?: DateRange): Promise<ServiceInsights[]> {
+    const services = await this.getServices();
+    const range = dateRange || getCurrentMonth();
+    const bookings = await this.getBookings({ dateRange: range });
+
+    const insights: ServiceInsights[] = services.map((service) => {
+      const serviceBookings = bookings.filter((b) => b.serviceId === service.id);
+      const revenue = serviceBookings
+        .filter((b) => b.status === 'completed')
+        .reduce((sum, b) => sum + b.revenue, 0);
+
+      // Count bookings by location
+      const popularityByLocation: { [locationId: string]: number } = {};
+      serviceBookings.forEach((booking) => {
+        popularityByLocation[booking.locationId] =
+          (popularityByLocation[booking.locationId] || 0) + 1;
+      });
+
+      return {
+        service,
+        bookingCount: serviceBookings.length,
+        revenue,
+        averagePrice: serviceBookings.length > 0 ? revenue / serviceBookings.length : 0,
+        popularityByLocation,
+      };
+    });
+
+    // Sort by booking count (most popular first)
+    return insights.sort((a, b) => b.bookingCount - a.bookingCount);
+  }
+
+  /**
+   * Get instructor insights (lessons, hours, revenue)
+   */
+  async getInstructorInsights(dateRange?: DateRange): Promise<InstructorInsights[]> {
+    const instructors = await this.getInstructors();
+    const range = dateRange || getCurrentMonth();
+    const bookings = await this.getBookings({ dateRange: range });
+
+    const insights: InstructorInsights[] = instructors.map((instructor) => {
+      const instructorBookings = bookings.filter((b) => b.instructorId === instructor.id);
+      const hoursWorked = instructorBookings.reduce((sum, b) => sum + b.duration / 60, 0);
+      const revenue = instructorBookings
+        .filter((b) => b.status === 'completed')
+        .reduce((sum, b) => sum + b.revenue, 0);
+
+      return {
+        instructor,
+        totalLessons: instructorBookings.length,
+        hoursWorked,
+        revenue,
+      };
+    });
+
+    return insights.sort((a, b) => b.revenue - a.revenue);
+  }
+
+  /**
+   * Get complete business snapshot
+   */
+  async getBusinessSnapshot(dateRange?: DateRange): Promise<BusinessSnapshot> {
+    const range = dateRange || getCurrentMonth();
+
+    const [locationInsights, serviceInsights, bookings] = await Promise.all([
+      this.getAllLocationInsights({ dateRange: range }),
+      this.getServiceInsights(range),
+      this.getBookings({ dateRange: range }),
+    ]);
+
+    const totalRevenue = bookings
+      .filter((b) => b.status === 'completed')
+      .reduce((sum, b) => sum + b.revenue, 0);
+
+    const totalBookedHours = locationInsights.reduce(
+      (sum, loc) => sum + loc.utilization.bookedHours,
+      0
+    );
+    const totalAvailableHours = locationInsights.reduce(
+      (sum, loc) => sum + loc.utilization.availableHours,
+      0
+    );
+    const overallUtilization =
+      totalAvailableHours > 0 ? totalBookedHours / totalAvailableHours : 0;
+
+    // Identify underperforming locations (utilization < 40%)
+    const underperformingLocations = locationInsights.filter(
+      (loc) => loc.utilization.utilizationRate < 0.4
+    );
+
+    return {
+      timestamp: new Date(),
+      locations: locationInsights,
+      totalRevenue,
+      totalBookings: bookings.length,
+      overallUtilization,
+      underperformingLocations,
+      topServices: serviceInsights.slice(0, 5),
+    };
+  }
+}
+
+export default new BusinessIntelligenceService();
