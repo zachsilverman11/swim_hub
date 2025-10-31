@@ -269,6 +269,59 @@ export class BusinessIntelligenceService {
   }
 
   /**
+   * Get coach availability from Firebase
+   * This represents actual coach schedules (not just program time windows)
+   */
+  async getAvailability(
+    locationId?: string,
+    seasonId?: string
+  ): Promise<Availability[]> {
+    let query = this.firebase.collection('availability');
+
+    if (locationId) {
+      query = query.where('locationId', '==', locationId) as any;
+    }
+
+    if (seasonId) {
+      query = query.where('seasonId', '==', seasonId) as any;
+    }
+
+    // Only approved, active availability
+    query = query.where('status', '==', 'approved') as any;
+    query = query.where('isActive', '==', true) as any;
+
+    const snapshot = await query.get();
+
+    const availabilities: Availability[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      availabilities.push({
+        id: doc.id,
+        coachId: data.coachId,
+        coachName: data.coachName,
+        locationId: data.locationId,
+        locationName: data.locationName,
+        seasonId: data.seasonId,
+        seasonName: data.seasonName,
+        programId: data.programId,
+        programName: data.programName,
+        days: data.days || [],
+        startTime: data.startTime,
+        endTime: data.endTime,
+        format: data.format,
+        lessonType: data.lessonType,
+        status: data.status,
+        isActive: data.isActive ?? true,
+        isFullCampAvailable: data.isFullCampAvailable ?? false,
+        createdAt: this.firebase.timestampToDate(data.createdAt),
+        updatedAt: this.firebase.timestampToDate(data.updatedAt),
+      });
+    });
+
+    return availabilities;
+  }
+
+  /**
    * Get pricing from Firebase
    */
   async getPricing(): Promise<Pricing | null> {
@@ -289,18 +342,18 @@ export class BusinessIntelligenceService {
   /**
    * Calculate weekly utilization for a location in a season
    * This calculates:
-   * - Available hours per week (from programs)
+   * - Available hours per week (from coach availability, NOT programs)
    * - Booked hours per week (from bookings, since each booking is a weekly recurring slot)
-   * - Utilization rate
+   * - Utilization rate (booked / available)
    */
   async calculateWeeklyUtilization(
     locationId: string,
     seasonId: string
   ): Promise<WeeklyUtilization> {
-    // Get all programs for this location and season
-    const programs = await this.getPrograms(locationId, seasonId);
+    // Get coach availability (actual coach schedules, not just program time windows)
+    const availabilities = await this.getAvailability(locationId, seasonId);
 
-    // Calculate available hours per week from programs
+    // Calculate available hours per week from coach schedules
     const availableSlots: Array<{
       dayOfWeek: string;
       startTime: string;
@@ -310,25 +363,26 @@ export class BusinessIntelligenceService {
 
     let totalAvailableHours = 0;
 
-    programs.forEach((program) => {
-      if (!program.isActive) return;
-
-      const startHour = parseInt(program.startTime.split(':')[0]);
-      const startMinute = parseInt(program.startTime.split(':')[1]);
-      const endHour = parseInt(program.endTime.split(':')[0]);
-      const endMinute = parseInt(program.endTime.split(':')[1]);
+    availabilities.forEach((availability) => {
+      const startHour = parseInt(availability.startTime.split(':')[0]);
+      const startMinute = parseInt(availability.startTime.split(':')[1]);
+      const endHour = parseInt(availability.endTime.split(':')[0]);
+      const endMinute = parseInt(availability.endTime.split(':')[1]);
 
       const hours =
         endHour - startHour + (endMinute - startMinute) / 60;
 
-      availableSlots.push({
-        dayOfWeek: program.dayOfWeek,
-        startTime: program.startTime,
-        endTime: program.endTime,
-        hours,
-      });
+      // Each availability can cover multiple days
+      availability.days.forEach((day) => {
+        availableSlots.push({
+          dayOfWeek: day,
+          startTime: availability.startTime,
+          endTime: availability.endTime,
+          hours,
+        });
 
-      totalAvailableHours += hours;
+        totalAvailableHours += hours;
+      });
     });
 
     // Get all confirmed bookings for this location and season
